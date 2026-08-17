@@ -1,0 +1,32 @@
+OMNIDEX CUSTOM PREBID.JS INSTALLATION
+======================================
+
+The OmniDex custom Prebid.js build (v11.29.0) that you shared in chat
+needs to be saved as:
+
+    /public/js/prebid.js
+
+STEPS:
+1. Copy the full Prebid.js source code (starting from the line:
+   "if(window.pbjs&&window.pbjs.libLoaded)...")
+2. Paste it into: public/js/prebid.js
+   (replacing the current placeholder content)
+
+The file will then be served at:
+    http://localhost:3000/js/prebid.js
+
+Ad tags automatically load it from /js/prebid.js with a CDN fallback.
+
+MODULES INCLUDED IN YOUR PREBID BUILD:
+- omnidexBidAdapter (gvlid: 1463)
+- userId
+- criteoIdSystem
+- id5IdSystem  
+- sharedIdSystem
+- unifiedIdSystem
+- uid2IdSystem
+
+PREBID PARAMS:
+- pId (Publisher): 25cv68n329154k1909176mw4
+- cId (Display):   6a0f24939f9529b6eec283e7
+- cId (Video):     6a0f249fb01f8a0cb9562731

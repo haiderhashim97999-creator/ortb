@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  email         String     @unique
+  password      String
+  name          String
+  role          String     @default("publisher")
+  status        String     @default("pending")
+  apiKey        String     @unique @default(cuid())
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  publisher     Publisher?
+}
+
+model Publisher {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName     String
+  website         String
+  sellerId        String   @unique @default(cuid())
+  sellerType      String   @default("PUBLISHER")
+  isConfidential  Boolean  @default(false)
+  revenueShare    Float    @default(70.0)
+  notes           String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sites           Site[]
+}
+
+model Site {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  publisherId   String   @db.ObjectId
+  publisher     Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  name          String
+  domain        String
+  status        String   @default("active")
+  adsTxtContent String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  adUnits       AdUnit[]
+
+  @@unique([publisherId, domain])
+}
+
+model AdUnit {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  siteId      String   @db.ObjectId
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  adType      String
+  sizes       String
+  status      String   @default("active")
+  bidFloor    Float    @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model OrtbDemandSource {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  endpoint      String
+  apiKey        String   @default("")
+  timeout       Int      @default(300)
+  active        Boolean  @default(true)
+  priority      Int      @default(1)
+  mediaTypes    String   @default("banner,video")
+  floorCpm      Float    @default(0.0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ReportCache {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  publisherId String   @db.ObjectId
+  siteId      String   @default("")
+  date        String
+  impressions Int      @default(0)
+  revenue     Float    @default(0.0)
+  clicks      Int      @default(0)
+  cpm         Float    @default(0.0)
+  fetchedAt   DateTime @default(now())
+
+  @@unique([publisherId, siteId, date])
+  @@index([publisherId])
+}
