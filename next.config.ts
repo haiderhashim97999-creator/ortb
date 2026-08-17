@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.100.2", "localhost"],
   
-  // Docker standalone output
-  output: "standalone",
-
   // Production security headers
   async headers() {
     return [
