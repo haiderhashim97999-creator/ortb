@@ -1,4 +1,7 @@
-// prisma.config.ts is used by Prisma v7+
-// For Prisma v6, configuration is in prisma/schema.prisma
-// This file is kept to avoid errors but is not active
-export default {};
+// prisma.config.ts - Prisma v6 configuration
+import path from "path";
+
+export default {
+  schema: path.join(process.cwd(), "prisma", "schema.prisma"),
+  envPaths: [path.join(process.cwd(), ".env")],
+};
