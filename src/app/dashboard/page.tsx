@@ -7,17 +7,25 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 import { TrendingUp, Eye, DollarSign, Globe, ArrowUpRight, Activity } from "lucide-react";
 
 async function getStats(publisherId: string) {
-  const range30  = getDateRange(30);
+  const range30   = getDateRange(30);
   const yesterday = getYesterday();
 
   let totalRevenue = 0, totalImpressions = 0;
   let yesterdayRevenue = 0, yesterdayImpressions = 0;
   let chartData: { date: string; revenue: number; impressions: number }[] = [];
 
+  // Get publisher's domains for filtering
+  const sites = await prisma.site.findMany({
+    where: { publisherId, status: "active" },
+    select: { domain: true },
+  });
+  const domains = sites.map((s) => s.domain);
+  const domainFilter = domains.length > 0 ? { Site: domains } : undefined;
+
   try {
     const [r30, rY] = await Promise.all([
-      getReport({ from: range30.from,   to: range30.to,   dimensions: ["Date"], metrics: ["Impressions","Revenue"] }),
-      getReport({ from: yesterday.from, to: yesterday.to, dimensions: [],       metrics: ["Impressions","Revenue"] }),
+      getReport({ from: range30.from,   to: range30.to,   dimensions: ["Date"], metrics: ["Impressions","Revenue"], filters: domainFilter }),
+      getReport({ from: yesterday.from, to: yesterday.to, dimensions: [],       metrics: ["Impressions","Revenue"], filters: domainFilter }),
     ]);
     if (r30.success) {
       const rows = flattenRows(r30.data.rows);
@@ -34,10 +42,10 @@ async function getStats(publisherId: string) {
     }
   } catch { /* API unavailable */ }
 
-  const sites   = await prisma.site.count({ where: { publisherId } });
-  const adUnits = await prisma.adUnit.count({ where: { site: { publisherId } } });
+  const siteCount = sites.length;
+  const adUnits   = await prisma.adUnit.count({ where: { site: { publisherId } } });
 
-  return { totalRevenue, totalImpressions, yesterdayRevenue, yesterdayImpressions, chartData, sites, adUnits };
+  return { totalRevenue, totalImpressions, yesterdayRevenue, yesterdayImpressions, chartData, sites: siteCount, adUnits };
 }
 
 export default async function DashboardPage() {
