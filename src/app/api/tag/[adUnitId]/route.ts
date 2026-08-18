@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const OMNIDEX_PID     = "25cv68n329154k1909176mw4";
+const OMNIDEX_PID        = "25cv68n329154k1909176mw4";
 const OMNIDEX_CID_BANNER = "6a0f24939f9529b6eec283e7";
-const OMNIDEX_CID_VIDEO  = "6a0f249fb01f8a0cb9562731";
-const SERVER_BASE     = "https://test.mindwellnetwork.site";
+const OMNIDEX_CID_VIDEO  = "6a0f249b01f8a0cb9562731";
+const SERVER_BASE        = "https://test.mindwellnetwork.site";
 
 export async function GET(
   _req: NextRequest,
@@ -103,6 +103,13 @@ export async function GET(
     var best = bids && bids[0];
 
     if (!best || !best.adId) {
+      el.style.minHeight = '0';
+      el.style.display = 'none';
+      return;
+    }
+
+    // Banner slot: reject video bids (no vastUrl/renderer = crash)
+    if (!IS_VIDEO && best.mediaType === 'video') {
       el.style.minHeight = '0';
       el.style.display = 'none';
       return;
