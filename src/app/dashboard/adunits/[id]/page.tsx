@@ -34,23 +34,20 @@ export default function AdUnitDetailPage() {
 
   if (!adUnit) return <div className="p-6 text-gray-400">Loading...</div>;
 
-  const scriptTag = `<!-- YieldProsper Ad Tag: ${adUnit.name} -->
-<script src="${origin}/api/tag/${adUnit.id}" async></script>`;
+  const scriptTag = `<script src="${origin}/api/tag/${adUnit.id}" async></script>`;
 
-  const htmlExample = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Ad Integration Example</title>
-</head>
-<body>
-  <!-- 1. Place this where you want the ad to appear -->
-  <div id="yp-ad-${adUnit.id}"></div>
+  const wordpressGuide = `Step 1: Install "WPCode" plugin (WordPress.org se free mein)
+Step 2: WP Admin → WPCode → + Add Snippet → HTML Snippet
+Step 3: Neeche diya hua code paste karo
+Step 4: Location: "Insert After Post" ya "Insert in Footer" select karo
+Step 5: Activate karo → Save karo
 
-  <!-- 2. Load the ad tag script -->
-  <script src="${origin}/api/tag/${adUnit.id}" async></script>
-</body>
-</html>`;
+Bas! Ad automatically apni jagah pe show hoga.
+Alag se koi div add karne ki zaroorat nahi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<script src="${origin}/api/tag/${adUnit.id}" async></script>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -103,7 +100,7 @@ export default function AdUnitDetailPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Code2 size={16} />
-            Ad Tag (Async Script)
+            Your Ad Tag — Sirf Yeh Ek Line Chahiye
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -118,32 +115,38 @@ export default function AdUnitDetailPage() {
             className="mt-3"
             onClick={() => copy(scriptTag, "script")}
           >
-            {copied === "script" ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy tag</>}
+            {copied === "script" ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy Tag</>}
           </Button>
-          <p className="text-xs text-gray-400 mt-2">
-            Place this tag in your page where you want the ad to appear.
+          <p className="text-xs text-green-600 font-medium mt-2">
+            ✓ Sirf yeh ek script tag add karo — ad div automatically create ho jata hai
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Koi alag div add karne ki zaroorat nahi. Script jahan bhi add hogi, ad wahin show hoga.
           </p>
         </CardContent>
       </Card>
 
-      {/* Full HTML example */}
+      {/* WordPress Guide */}
       <Card>
         <CardHeader>
-          <CardTitle>Full HTML Example</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Info size={16} />
+            WordPress Pe Kaise Add Karein
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="bg-gray-900 rounded-lg p-4 max-h-80 overflow-auto">
-            <pre className="text-gray-300 text-xs font-mono whitespace-pre">
-              {htmlExample}
+            <pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
+              {wordpressGuide}
             </pre>
           </div>
           <Button
             size="sm"
             variant="outline"
             className="mt-3"
-            onClick={() => copy(htmlExample, "html")}
+            onClick={() => copy(scriptTag, "wp")}
           >
-            {copied === "html" ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy example</>}
+            {copied === "wp" ? <><CheckCircle size={14} /> Copied!</> : <><Copy size={14} /> Copy Script</>}
           </Button>
         </CardContent>
       </Card>

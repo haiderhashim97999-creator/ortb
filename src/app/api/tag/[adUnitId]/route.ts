@@ -51,77 +51,131 @@ export async function GET(
 
   const isVideo = adUnit.adType === "video";
   const cId = isVideo ? OMNIDEX_CID_VIDEO : OMNIDEX_CID_DISPLAY;
-  const divId = `yp-ad-${adUnit.id}`;
 
   // Build oRTB bidder configs for Prebid
   const ortbBidders = ortbSources
     .filter((s) => s.mediaTypes.split(",").includes(isVideo ? "video" : "banner"))
     .map((s) => ({
-      bidder: "openx", // generic placeholder; real integration uses bidder-specific adapters
+      bidder: "openx",
       params: { unit: s.id, delDomain: new URL(s.endpoint).hostname },
     }));
 
-  const videoMediaType = isVideo
-    ? `video: {
-          playerSize: ${JSON.stringify(sizes)},
-          context: 'instream',
-          mimes: ['video/mp4','video/webm'],
-          protocols: [1,2,3,4,5,6],
-          playbackmethod: [1,2],
-          maxduration: 30,
-          api: [1,2]
-        }`
-    : "";
+  const adWidth = sizes[0]?.[0] || 300;
+  const adHeight = sizes[0]?.[1] || 250;
 
-  const bannerMediaType = !isVideo
-    ? `banner: { sizes: ${JSON.stringify(sizes)} }`
-    : "";
+  const tag = `(function() {
+  // ── YieldProsper Ad | ${adUnit.name} ──────────────────────────
+  var AD_UNIT_ID  = '${adUnit.id}';
+  var DIV_ID      = 'yp-${adUnit.id.slice(-8)}';
+  var AD_W        = ${adWidth};
+  var AD_H        = ${adHeight};
+  var IS_VIDEO    = ${isVideo};
+  var CID         = '${cId}';
+  var PID         = '${OMNIDEX_PID}';
+  var BID_FLOOR   = ${adUnit.bidFloor || 0};
+  var PBJS_TIMEOUT  = 1500;
+  var FAILSAFE_MS   = 2500;
+  var SERVER        = 'https://test.mindwellnetwork.site';
 
-  const tag = `
-<!-- YieldProsper Ad Tag | Unit: ${adUnit.name} | Site: ${adUnit.site.domain} -->
-<div id="${divId}"></div>
-<script>
-(function() {
-  var PREBID_TIMEOUT = 1500;
-  var FAILSAFE_TIMEOUT = 2200;
+  // ── 1. Create & inject ad container div ───────────────────────
+  var container = document.createElement('div');
+  container.id = DIV_ID;
+  container.style.cssText = 'display:block;width:' + AD_W + 'px;max-width:100%;margin:0 auto;overflow:hidden;';
 
+  // Place div right after the <script> tag that loaded this file
+  var currentScript = document.currentScript || (function() {
+    var scripts = document.getElementsByTagName('script');
+    return scripts[scripts.length - 1];
+  })();
+  if (currentScript && currentScript.parentNode) {
+    currentScript.parentNode.insertBefore(container, currentScript.nextSibling);
+  } else {
+    document.body.appendChild(container);
+  }
+
+  // ── 2. Prebid ad units config ─────────────────────────────────
   var adUnits = [{
-    code: '${divId}',
-    mediaTypes: {
-      ${bannerMediaType}${videoMediaType}
-    },
-    bids: [
-      {
-        bidder: 'omnidex',
-        params: {
-          cId: '${cId}',
-          pId: '${OMNIDEX_PID}',
-          bidFloor: ${adUnit.bidFloor || 0}
-        }
-      }
-      ${ortbBidders.length > 0 ? "," + ortbBidders.map(b => JSON.stringify(b)).join(",") : ""}
-    ]
+    code: DIV_ID,
+    mediaTypes: IS_VIDEO
+      ? { video: { playerSize: [[AD_W, AD_H]], context: 'instream', mimes: ['video/mp4','video/webm'], protocols: [1,2,3,4,5,6], playbackmethod: [1,2], maxduration: 30, api: [1,2] } }
+      : { banner: { sizes: ${JSON.stringify(sizes)} } },
+    bids: [{
+      bidder: 'omnidex',
+      params: { cId: CID, pId: PID, bidFloor: BID_FLOOR }
+    }${ortbBidders.length > 0 ? "," + ortbBidders.map(b => JSON.stringify(b)).join(",") : ""}]
   }];
 
-  function initAdServer() {
-    if (window.pbjs && window.pbjs.initAdserverSet) return;
-    if (window.pbjs) window.pbjs.initAdserverSet = true;
+  // ── 3. Render helpers ─────────────────────────────────────────
+  function renderOrtbAd(adm) {
+    var el = document.getElementById(DIV_ID);
+    if (!el) return;
+    var iframe = document.createElement('iframe');
+    iframe.style.cssText = 'border:none;width:' + AD_W + 'px;height:' + AD_H + 'px;';
+    iframe.scrolling = 'no';
+    iframe.srcdoc = adm;
+    el.appendChild(iframe);
+  }
 
+  function renderNoFill() {
+    var el = document.getElementById(DIV_ID);
+    if (el) el.style.display = 'none';
+  }
+
+  // ── 4. oRTB fallback ──────────────────────────────────────────
+  var ORTB_SOURCES = ${JSON.stringify(ortbSources.map((s) => ({ endpoint: s.endpoint, timeout: s.timeout, floorCpm: s.floorCpm })))};
+
+  function tryOrtbFallback(index) {
+    if (index >= ORTB_SOURCES.length) { renderNoFill(); return; }
+    var src = ORTB_SOURCES[index];
+    var req = {
+      id: AD_UNIT_ID + '-' + Date.now(),
+      imp: [{ id: '1', banner: { w: AD_W, h: AD_H }, bidfloor: src.floorCpm }],
+      site: { domain: '${adUnit.site.domain}', page: window.location.href },
+      at: 1
+    };
+    fetch(src.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-openrtb-version': '2.5' },
+      body: JSON.stringify(req),
+      signal: AbortSignal.timeout(src.timeout)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (resp && resp.seatbid && resp.seatbid[0] && resp.seatbid[0].bid && resp.seatbid[0].bid.length) {
+        var best = resp.seatbid[0].bid.reduce(function(a,b){ return b.price > a.price ? b : a; });
+        if (best.price >= src.floorCpm) { renderOrtbAd(best.adm); return; }
+      }
+      tryOrtbFallback(index + 1);
+    })
+    .catch(function() { tryOrtbFallback(index + 1); });
+  }
+
+  // ── 5. Prebid init ────────────────────────────────────────────
+  function initPrebid() {
+    if (window.pbjs && window.pbjs._ypInit) return;
     window.pbjs = window.pbjs || {};
     window.pbjs.que = window.pbjs.que || [];
+    if (window.pbjs._ypInit) return;
+    window.pbjs._ypInit = true;
 
     window.pbjs.que.push(function() {
+      window.pbjs.setConfig({
+        userSync: {
+          syncDelay: 3000, auctionDelay: 300,
+          filterSettings: {
+            iframe: { bidders: ['omnidex'], filter: 'include' },
+            image:  { bidders: '*', filter: 'include' }
+          }
+        }
+      });
       window.pbjs.addAdUnits(adUnits);
-
       window.pbjs.requestBids({
-        timeout: PREBID_TIMEOUT,
-        bidsBackHandler: function(bidResponses) {
-          var bids = window.pbjs.getHighestCpmBids('${divId}');
+        timeout: PBJS_TIMEOUT,
+        bidsBackHandler: function() {
+          var bids = window.pbjs.getHighestCpmBids(DIV_ID);
           if (bids && bids.length > 0) {
-            var winner = bids[0];
-            window.pbjs.renderAd(document, winner.adId);
+            window.pbjs.renderAd(document, bids[0].adId);
           } else {
-            // oRTB fallback: try demand sources in priority order
             tryOrtbFallback(0);
           }
         }
@@ -129,129 +183,25 @@ export async function GET(
     });
   }
 
-  function tryOrtbFallback(index) {
-    var sources = ${JSON.stringify(
-      ortbSources.map((s) => ({
-        name: s.name,
-        endpoint: s.endpoint,
-        timeout: s.timeout,
-        floorCpm: s.floorCpm,
-      }))
-    )};
+  // Failsafe if Prebid never fires
+  var failsafeTimer = setTimeout(function() {
+    tryOrtbFallback(0);
+  }, FAILSAFE_MS);
 
-    if (index >= sources.length) {
-      // No fill — render empty placeholder
-      renderNoFill();
-      return;
-    }
-
-    var src = sources[index];
-    var bidReq = {
-      id: '${adUnit.id}-' + Date.now(),
-      imp: [{
-        id: '1',
-        ${isVideo ? `video: { w: ${sizes[0]?.[0] || 640}, h: ${sizes[0]?.[1] || 480}, mimes: ['video/mp4'] }` : `banner: { w: ${sizes[0]?.[0] || 300}, h: ${sizes[0]?.[1] || 250} }`},
-        bidfloor: src.floorCpm
-      }],
-      site: {
-        domain: '${adUnit.site.domain}',
-        page: window.location.href
-      },
-      at: 1
-    };
-
-    fetch(src.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-openrtb-version': '2.5' },
-      body: JSON.stringify(bidReq),
-      signal: AbortSignal.timeout(src.timeout)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(resp) {
-      if (resp && resp.seatbid && resp.seatbid.length > 0) {
-        var bids = resp.seatbid[0].bid;
-        if (bids && bids.length > 0) {
-          var best = bids.reduce(function(a, b) { return b.price > a.price ? b : a; });
-          if (best.price >= src.floorCpm) {
-            renderOrtbAd(best.adm);
-            return;
-          }
-        }
-      }
-      tryOrtbFallback(index + 1);
-    })
-    .catch(function() {
-      tryOrtbFallback(index + 1);
-    });
-  }
-
-  function renderOrtbAd(adm) {
-    var el = document.getElementById('${divId}');
-    if (!el) return;
-    var iframe = document.createElement('iframe');
-    iframe.style.border = 'none';
-    iframe.style.width = '${sizes[0]?.[0] || 300}px';
-    iframe.style.height = '${sizes[0]?.[1] || 250}px';
-    iframe.srcdoc = adm;
-    el.appendChild(iframe);
-  }
-
-  function renderNoFill() {
-    var el = document.getElementById('${divId}');
-    if (el) el.style.display = 'none';
-  }
-
-  // Load Prebid.js (proxied — real source hidden from publishers)
-  if (!window._ypPrebidLoaded) {
-    window._ypPrebidLoaded = true;
+  // ── 6. Load Prebid.js ─────────────────────────────────────────
+  if (!window._ypPbjsLoaded) {
+    window._ypPbjsLoaded = true;
     var s = document.createElement('script');
-    s.src = '/api/pbjs';
+    s.src = SERVER + '/api/pbjs';
     s.async = true;
-    s.onload = function() { initAdServer(); };
-    s.onerror = function() {
-      // Silent fallback — no real URL exposed
-      setTimeout(function() { initAdServer(); }, 500);
-    };
+    s.onload  = function() { clearTimeout(failsafeTimer); initPrebid(); };
+    s.onerror = function() { clearTimeout(failsafeTimer); tryOrtbFallback(0); };
     document.head.appendChild(s);
   } else {
-    initAdServer();
+    clearTimeout(failsafeTimer);
+    initPrebid();
   }
-
-  // Failsafe: trigger oRTB if Prebid doesn't respond
-  setTimeout(function() {
-    if (!window.pbjs || !window.pbjs.initAdserverSet) {
-      tryOrtbFallback(0);
-    }
-  }, FAILSAFE_TIMEOUT);
-
-  // Configure Prebid with OmniDex userId modules + user sync
-  if (window.pbjs) {
-    window.pbjs.que = window.pbjs.que || [];
-    window.pbjs.que.push(function() {
-      window.pbjs.setConfig({
-        // User ID modules (from OmniDex custom build)
-        userSync: {
-          syncDelay: 3000,
-          auctionDelay: 300,
-          filterSettings: {
-            iframe: { bidders: ['omnidex'], filter: 'include' },
-            image: { bidders: '*', filter: 'include' }
-          },
-          userIds: [
-            { name: 'sharedId', storage: { name: 'pubcid', type: 'cookie', expires: 365 } },
-            { name: 'unifiedId', params: { partner: 'prebid' }, storage: { name: 'unifiedid', type: 'cookie', expires: 90 } },
-            { name: 'id5Id', params: { partner: 173 }, storage: { name: 'id5id', type: 'html5', expires: 90 } },
-            { name: 'criteoId', storage: { name: 'criteo', type: 'cookie', expires: 365 } },
-            { name: 'uid2Id', storage: { name: '__uid2_advertising_token', type: 'localStorage' } }
-          ]
-        }
-      });
-    });
-  }
-})();
-</script>
-<!-- /YieldProsper Ad Tag -->
-`.trim();
+})();`;
 
   return new NextResponse(tag, {
     headers: {
