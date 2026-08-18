@@ -109,7 +109,15 @@ export async function getFilterOptions() {
   return omnidexFetch("/filter-options");
 }
 
-/** Build date range helpers */
+export function flattenRows(rows: OmniDexReportRow[]): OmniDexReportRow[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (rows as any[]).map((row: any) => {
+    if (row.dimensions || row.metrics) {
+      return { ...row.dimensions, ...row.metrics } as OmniDexReportRow;
+    }
+    return row as OmniDexReportRow;
+  });
+}
 export function getLast30Days(): { from: string; to: string } {
   const to = new Date();
   const from = new Date();

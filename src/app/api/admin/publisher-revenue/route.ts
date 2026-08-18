@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { getReport, getDateRange } from "@/lib/omnidex";
+import { getReport, getDateRange, flattenRows } from "@/lib/omnidex";
 
 export async function GET() {
   try {
@@ -20,17 +20,10 @@ export async function GET() {
 
     const totals = { impressions: 0, revenue: 0 };
     if (report.success && report.data?.rows) {
-      report.data.rows.forEach((r: {
-        dimensions?: Record<string, string>;
-        metrics?: Record<string, number>;
-        Impressions?: number;
-        Revenue?: number;
-      }) => {
-        // Handle nested structure
-        const imp = r.metrics?.Impressions ?? r.Impressions ?? 0;
-        const rev = r.metrics?.Revenue ?? r.Revenue ?? 0;
-        totals.impressions += imp;
-        totals.revenue += rev;
+      const rows = flattenRows(report.data.rows);
+      rows.forEach((r) => {
+        totals.impressions += r.Impressions || 0;
+        totals.revenue     += r.Revenue     || 0;
       });
     }
 

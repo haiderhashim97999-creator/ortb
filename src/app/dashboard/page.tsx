@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getReport, getDateRange, getYesterday } from "@/lib/omnidex";
+import { getReport, getDateRange, getYesterday, flattenRows } from "@/lib/omnidex";
 import { Card, CardContent, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { RevenueChart } from "@/components/charts/RevenueChart";
 import { formatCurrency, formatNumber } from "@/lib/utils";
@@ -20,15 +20,17 @@ async function getStats(publisherId: string) {
       getReport({ from: yesterday.from, to: yesterday.to, dimensions: [],       metrics: ["Impressions","Revenue"] }),
     ]);
     if (r30.success) {
-      r30.data.rows.forEach((r) => {
+      const rows = flattenRows(r30.data.rows);
+      rows.forEach((r) => {
         totalRevenue     += r.Revenue     || 0;
         totalImpressions += r.Impressions || 0;
         chartData.push({ date: r.Date || "", revenue: r.Revenue || 0, impressions: r.Impressions || 0 });
       });
     }
     if (rY.success && rY.data.rows.length > 0) {
-      yesterdayRevenue     = rY.data.rows[0].Revenue     || 0;
-      yesterdayImpressions = rY.data.rows[0].Impressions || 0;
+      const yRows = flattenRows(rY.data.rows);
+      yesterdayRevenue     = yRows[0].Revenue     || 0;
+      yesterdayImpressions = yRows[0].Impressions || 0;
     }
   } catch { /* API unavailable */ }
 
