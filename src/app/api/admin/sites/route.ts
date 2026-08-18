@@ -21,34 +21,33 @@ export async function GET() {
   return NextResponse.json({ success: true, sites });
 }
 
-// PATCH — approve or reject a site
+// PATCH — approve/reject/suspend a site OR save adagioSite slug
 export async function PATCH(req: NextRequest) {
   try { await requireAdmin(); } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { siteId, action, adagioSite } = await req.json();
+  const body = await req.json();
+  const { siteId, action, adagioSite } = body;
 
   if (!siteId) {
     return NextResponse.json({ error: "siteId required" }, { status: 400 });
   }
 
-  // Update adagioSite slug only
+  // Save adagioSite slug — use any cast until prisma generate runs on VPS
   if (adagioSite !== undefined) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const site = await (prisma.site as any).update({
+    const db = prisma as any;
+    const site = await db.site.update({
       where: { id: siteId },
-      data: { adagioSite },
+      data: { adagioSite: String(adagioSite) },
     });
     return NextResponse.json({ success: true, site });
   }
 
-  if (!action) {
-    return NextResponse.json({ error: "action required" }, { status: 400 });
-  }
-
-  if (!["approve", "reject", "suspend"].includes(action)) {
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  // Status actions
+  if (!action || !["approve", "reject", "suspend"].includes(action)) {
+    return NextResponse.json({ error: "action required: approve|reject|suspend" }, { status: 400 });
   }
 
   const statusMap: Record<string, string> = {
