@@ -52,9 +52,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // secure: only if HTTPS is actually in use (not plain IP/HTTP)
+    const isHttps = process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://");
+
     res.cookies.set("yp_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps === true,
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
