@@ -35,7 +35,8 @@ export async function PATCH(req: NextRequest) {
 
   // Update adagioSite slug only
   if (adagioSite !== undefined) {
-    const site = await prisma.site.update({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const site = await (prisma.site as any).update({
       where: { id: siteId },
       data: { adagioSite },
     });

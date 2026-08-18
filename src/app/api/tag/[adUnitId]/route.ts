@@ -55,7 +55,9 @@ export async function GET(
 
   // Adagio site slug — set by admin in site settings
   // Falls back to domain slug if not set
-  const adagioSite = adUnit.site.adagioSite ||
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const siteAny = adUnit.site as any;
+  const adagioSite = siteAny.adagioSite ||
     adUnit.site.domain.replace(/^www\./, "").replace(/\./g, "-").replace(/[^a-z0-9-]/gi, "").toLowerCase();
 
   // Placement per Adagio recommended values (docs.prebid.org/dev-docs/bidders/adagio)
