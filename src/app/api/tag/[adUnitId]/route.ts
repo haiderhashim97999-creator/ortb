@@ -138,14 +138,26 @@ export async function GET(
   function runAuction() {
     window.pbjs.que.push(function () {
 
-      // RTD module config — per Adagio documentation
-      // https://adagio-io.gitbook.io/adagio-documentation/prebid/prebid.js-getting-started/real-time-data-rtd-module
+      // First Party Data — pagetype & category via FPD (required by Adagio RTD v9+)
+      // Docs: AdagioRtdProvider warns when using params instead of FPD
       window.pbjs.setConfig({
         bidderTimeout: TIMEOUT,
         enableTIDs: true,
         deviceAccess: true,
 
-        // User sync — iframe required by Adagio (docs: User Sync section)
+        // FPD: pagetype and category at site level (deprecated from adUnit params)
+        ortb2: {
+          site: {
+            ext: {
+              data: {
+                pagetype: PAGETYPE,
+                category: 'general'
+              }
+            }
+          }
+        },
+
+        // User sync — iframe required by Adagio
         userSync: {
           filterSettings: {
             iframe: {
@@ -159,15 +171,14 @@ export async function GET(
           }
         },
 
-        // Real Time Data module — Adagio RTD provider
-        // Required for viewability & attention prediction (major revenue optimisation)
+        // Adagio RTD provider config
         realTimeData: {
           dataProviders: [{
             name: 'adagio',
             params: {
-              organizationId: ADAGIO_ORG_ID,   // Required — from Adagio account
-              site: ADAGIO_SITE,                // Required — from Adagio account
-              placementSource: 'ortb'           // Optional, default 'ortb'
+              organizationId: ADAGIO_ORG_ID,
+              site: ADAGIO_SITE,
+              placementSource: 'ortb'  // reads placement from ortb2Imp.ext.data.placement
             }
           }]
         }
@@ -177,11 +188,17 @@ export async function GET(
         '*': { storageAllowed: true }
       };
 
-      // Ad unit definition per Adagio bid params documentation
-      // https://docs.prebid.org/dev-docs/bidders/adagio
+      // Ad unit — placement set via ortb2Imp.ext.data (not deprecated params)
       var adUnitDef = IS_VIDEO
         ? {
             code: slotId,
+            ortb2Imp: {
+              ext: {
+                data: {
+                  placement: PLACEMENT   // e.g. 'video_outstream'
+                }
+              }
+            },
             mediaTypes: {
               video: {
                 context: 'outstream',
@@ -197,14 +214,19 @@ export async function GET(
               bidder: 'adagio',
               params: {
                 organizationId: ADAGIO_ORG_ID,
-                site: ADAGIO_SITE,
-                placement: PLACEMENT,       // 'video_outstream'
-                pagetype: PAGETYPE
+                site: ADAGIO_SITE
               }
             }]
           }
         : {
             code: slotId,
+            ortb2Imp: {
+              ext: {
+                data: {
+                  placement: PLACEMENT   // e.g. 'banner_top'
+                }
+              }
+            },
             mediaTypes: {
               banner: { sizes: SIZES }
             },
@@ -212,9 +234,7 @@ export async function GET(
               bidder: 'adagio',
               params: {
                 organizationId: ADAGIO_ORG_ID,
-                site: ADAGIO_SITE,
-                placement: PLACEMENT,       // 'banner_top'
-                pagetype: PAGETYPE
+                site: ADAGIO_SITE
               }
             }]
           };
