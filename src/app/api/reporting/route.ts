@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getReport, getDateRange } from "@/lib/omnidex";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -19,17 +20,50 @@ export async function POST(req: NextRequest) {
       dateTo = r.to;
     }
 
+    // Get publisher's domains for filtering (non-admin only)
+    let domainFilter: string[] | null = null;
+    if (session.role !== "admin" && session.publisherId) {
+      const sites = await prisma.site.findMany({
+        where: { publisherId: session.publisherId, status: "active" },
+        select: { domain: true },
+      });
+      domainFilter = sites.map((s) => s.domain);
+    }
+
     const result = await getReport({
       from: dateFrom,
       to: dateTo,
       dimensions: dimensions || ["Date"],
       metrics: metrics || ["Impressions", "Revenue"],
+      // Filter by publisher's domains if not admin
+      filters: domainFilter && domainFilter.length > 0
+        ? { Site: domainFilter }
+        : undefined,
     });
 
-    // Publishers only see their own data — OmniDex API key is network-wide,
-    // so we return the data as-is (same API key = same publisher view).
-    // In a multi-tenant setup with separate OmniDex PIDs per publisher, you'd filter here.
-    return NextResponse.json(result);
+    // Normalize nested OmniDex row structure to flat format
+    // OmniDex returns: { dimensions: { Date: "..." }, metrics: { Impressions: 0 } }
+    // Dashboard expects: { Date: "...", Impressions: 0, Revenue: 0 }
+    const rawRows = result?.data?.rows || [];
+    const flatRows = rawRows.map((row: {
+      dimensions?: Record<string, string>;
+      metrics?: Record<string, number>;
+      [key: string]: unknown;
+    }) => {
+      if (row.dimensions || row.metrics) {
+        return { ...row.dimensions, ...row.metrics };
+      }
+      return row; // already flat
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        rows: flatRows,
+        meta: result?.data?.meta,
+      },
+    });
+
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 502 });
