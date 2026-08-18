@@ -12,9 +12,10 @@
  */
 import { NextResponse } from "next/server";
 
-// Prebid build with Adagio modules included
-// Source: https://download.prebid.org with adagioBidAdapter + rtdModule + adagioRtdProvider
-const PREBID_SOURCE = "https://cdn.jsdelivr.net/npm/prebid.js@9.32.0/dist/not-for-prod/prebid.js";
+// Prebid.js — not-for-prod build from official Prebid CDN
+// Includes ALL adapters including adagioBidAdapter, rtdModule, adagioRtdProvider
+// NOTE: not-for-prod build is for testing only, replace with custom build for production
+const PREBID_SOURCE = "https://cdn.jsdelivr.net/npm/prebid.js@9.51.0/dist/not-for-prod/prebid.js";
 
 // Cache in memory for 6 hours
 let cachedContent: string | null = null;
