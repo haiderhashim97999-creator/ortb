@@ -80,7 +80,7 @@ export async function GET(
   var adUnit = IS_VIDEO
     ? {
         code: slotId,
-        mediaTypes: { video: { context: 'outstream', playerSize: SIZES } },
+        mediaTypes: { video: { context: 'outstream', playerSize: [[AD_W, AD_H]] } },
         bids: [{ bidder: 'omnidex', params: { pid: PID, cid: CID } }]
       }
     : {
