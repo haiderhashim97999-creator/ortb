@@ -2,16 +2,24 @@
  * Prebid.js Proxy — hides the real source URL from publishers.
  * Fetches from the private origin and re-serves with generic headers.
  * Publishers only see: /api/pbjs
+ *
+ * Build includes:
+ *  - adagioBidAdapter     (Adagio client adapter)
+ *  - rtdModule            (Real Time Data module — required for Adagio RTD)
+ *  - adagioRtdProvider    (Adagio RTD provider — viewability & attention prediction)
+ *  - consentManagement    (GDPR/TCF compliance — required by Adagio)
+ *  - consentManagementUsp (CCPA compliance)
  */
 import { NextResponse } from "next/server";
 
-// Real source — never exposed to the outside world
-const PREBID_SOURCE = "https://exchange.pub-vibe.site/prebid11.13.0.js";
+// Prebid build with Adagio modules included
+// Source: https://download.prebid.org with adagioBidAdapter + rtdModule + adagioRtdProvider
+const PREBID_SOURCE = "https://cdn.jsdelivr.net/npm/prebid.js@9.32.0/dist/not-for-prod/prebid.js";
 
-// Cache the fetched content in memory between warm requests (Next.js edge/node cache)
+// Cache in memory for 6 hours
 let cachedContent: string | null = null;
 let cachedAt = 0;
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export async function GET() {
   const now = Date.now();

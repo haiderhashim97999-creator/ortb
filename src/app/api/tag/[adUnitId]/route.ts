@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const OMNIDEX_PID        = "25cv68n329154k1909176mw4";
-const OMNIDEX_CID_BANNER = "6a0f24939f9529b6eec283e7";
-const OMNIDEX_CID_VIDEO  = "6a0f249b01f8a0cb9562731";
-const SERVER_BASE        = "https://test.mindwellnetwork.site";
+// ─── Adagio Configuration ────────────────────────────────────────────────────
+// organizationId and site are provided by Adagio team (from your Adagio account)
+// API Key: ad77f01cfa3bc06d40ce71feb1e9c439b8baac6d
+const ADAGIO_ORGANIZATION_ID = "ad77f01cfa3bc06d40ce71feb1e9c439b8baac6d";
+const ADAGIO_SITE            = "yieldprosper";   // your site name in Adagio dashboard
+const SERVER_BASE            = "https://test.mindwellnetwork.site";
 
 export async function GET(
   _req: NextRequest,
@@ -35,29 +37,48 @@ export async function GET(
     });
   }
 
+  // Block pending sites — no ads until admin approves
+  if (adUnit.site.status !== "active") {
+    return new NextResponse("// Site pending approval", {
+      status: 403,
+      headers: { "Content-Type": "application/javascript" },
+    });
+  }
+
   const sizes = (() => {
     try { return JSON.parse(adUnit.sizes); } catch { return [[300, 250]]; }
   })();
 
-  const isVideo   = adUnit.adType === "video";
-  const cid       = isVideo ? OMNIDEX_CID_VIDEO : OMNIDEX_CID_BANNER;
-  const adW       = sizes[0]?.[0] || 300;
-  const adH       = sizes[0]?.[1] || 250;
+  const isVideo = adUnit.adType === "video";
+  const adW     = sizes[0]?.[0] || 300;
+  const adH     = sizes[0]?.[1] || 250;
+
+  // Determine Adagio placement value per documentation recommendations:
+  // Banner: banner_top, banner_middle, banner_bottom etc.
+  // Video:  video_outstream
+  const adagioPlacement = isVideo ? "video_outstream" : "banner_top";
+
+  // pagetype — can be extended per site/page in future
+  const pagetype = "article";
 
   const tag = `(function () {
   'use strict';
 
-  var PID    = '${OMNIDEX_PID}';
-  var CID    = '${cid}';
-  var AD_ID  = '${adUnit.id}';
-  var AD_W   = ${adW};
-  var AD_H   = ${adH};
-  var SIZES  = ${JSON.stringify(sizes)};
-  var SERVER = '${SERVER_BASE}';
-  var TIMEOUT = 5000;
+  // ── Config ──────────────────────────────────────────────────────
+  var ADAGIO_ORG_ID  = '${ADAGIO_ORGANIZATION_ID}';
+  var ADAGIO_SITE    = '${ADAGIO_SITE}';
+  var PLACEMENT      = '${adagioPlacement}';
+  var PAGETYPE       = '${pagetype}';
+  var AD_ID          = '${adUnit.id}';
+  var AD_W           = ${adW};
+  var AD_H           = ${adH};
+  var IS_VIDEO       = ${isVideo};
+  var SIZES          = ${JSON.stringify(sizes)};
+  var SERVER         = '${SERVER_BASE}';
+  var TIMEOUT        = 5000;
 
-  /* ─── Step 1: inject container div right after this script tag ─── */
-  var _me = document.currentScript || (function(){
+  // ── Step 1: inject container div after this script tag ──────────
+  var _me = document.currentScript || (function () {
     var s = document.getElementsByTagName('script');
     return s[s.length - 1];
   })();
@@ -68,9 +89,15 @@ export async function GET(
   var _div = document.createElement('div');
   _div.id = slotId;
   _div.style.cssText = 'width:' + AD_W + 'px;max-width:100%;overflow:hidden;';
-  _me.parentNode.insertBefore(_div, _me.nextSibling);
+  if (_me && _me.parentNode) {
+    _me.parentNode.insertBefore(_div, _me.nextSibling);
+  } else {
+    document.body.appendChild(_div);
+  }
 
-  /* ─── Step 2: render function (same logic as pub-vibe) ─────────── */
+  // ── Step 2: render winning bid ───────────────────────────────────
+  // Adagio video outstream uses its own renderer (Blue Billywig player)
+  // Banner uses iframe doc.write — same as pub-vibe reference
   function renderSlot() {
     var el = document.getElementById(slotId);
     if (!el) return;
@@ -81,11 +108,20 @@ export async function GET(
     el.innerHTML = '';
     el.style.display = 'block';
 
+    // Video outstream: Adagio adapter includes Blue Billywig renderer
+    if (IS_VIDEO && bid.renderer) {
+      try {
+        bid.renderer.render(bid);
+        return;
+      } catch (e) { /* fall through to iframe */ }
+    }
+
+    // Banner: write ad markup into iframe
     var iframe = document.createElement('iframe');
     iframe.frameBorder = '0';
-    iframe.scrolling = 'no';
-    iframe.width  = bid.width  || AD_W;
-    iframe.height = bid.height || AD_H;
+    iframe.scrolling   = 'no';
+    iframe.width       = bid.width  || AD_W;
+    iframe.height      = bid.height || AD_H;
     iframe.style.cssText = 'border:none;display:block;';
     el.appendChild(iframe);
 
@@ -95,31 +131,100 @@ export async function GET(
     doc.close();
   }
 
-  /* ─── Step 3: wait for pbjs then request bids ───────────────────── */
+  // ── Step 3: configure pbjs and run auction ───────────────────────
   function runAuction() {
     window.pbjs.que.push(function () {
+
+      // RTD module config — per Adagio documentation
+      // https://adagio-io.gitbook.io/adagio-documentation/prebid/prebid.js-getting-started/real-time-data-rtd-module
       window.pbjs.setConfig({
         bidderTimeout: TIMEOUT,
         enableTIDs: true,
-        deviceAccess: true
-      });
-      window.pbjs.bidderSettings = { '*': { storageAllowed: true } };
+        deviceAccess: true,
 
-      var adUnit = {
-        code: slotId,
-        mediaTypes: { banner: { sizes: SIZES } },
-        bids: [{ bidder: 'omnidex', params: { pid: PID, cid: CID } }]
+        // User sync — iframe required by Adagio (docs: User Sync section)
+        userSync: {
+          filterSettings: {
+            iframe: {
+              bidders: ['adagio'],
+              filter: 'include'
+            },
+            image: {
+              bidders: '*',
+              filter: 'include'
+            }
+          }
+        },
+
+        // Real Time Data module — Adagio RTD provider
+        // Required for viewability & attention prediction (major revenue optimisation)
+        realTimeData: {
+          dataProviders: [{
+            name: 'adagio',
+            params: {
+              organizationId: ADAGIO_ORG_ID,   // Required — from Adagio account
+              site: ADAGIO_SITE,                // Required — from Adagio account
+              placementSource: 'ortb'           // Optional, default 'ortb'
+            }
+          }]
+        }
+      });
+
+      window.pbjs.bidderSettings = {
+        '*': { storageAllowed: true }
       };
 
-      window.pbjs.addAdUnits([adUnit]);
+      // Ad unit definition per Adagio bid params documentation
+      // https://docs.prebid.org/dev-docs/bidders/adagio
+      var adUnitDef = IS_VIDEO
+        ? {
+            code: slotId,
+            mediaTypes: {
+              video: {
+                context: 'outstream',
+                playerSize: [[AD_W, AD_H]],
+                mimes: ['video/mp4', 'video/webm'],
+                protocols: [1, 2, 3, 4, 5, 6],
+                playbackmethod: [1, 2],
+                maxduration: 30,
+                api: [1, 2]
+              }
+            },
+            bids: [{
+              bidder: 'adagio',
+              params: {
+                organizationId: ADAGIO_ORG_ID,
+                site: ADAGIO_SITE,
+                placement: PLACEMENT,       // 'video_outstream'
+                pagetype: PAGETYPE
+              }
+            }]
+          }
+        : {
+            code: slotId,
+            mediaTypes: {
+              banner: { sizes: SIZES }
+            },
+            bids: [{
+              bidder: 'adagio',
+              params: {
+                organizationId: ADAGIO_ORG_ID,
+                site: ADAGIO_SITE,
+                placement: PLACEMENT,       // 'banner_top'
+                pagetype: PAGETYPE
+              }
+            }]
+          };
+
+      window.pbjs.addAdUnits([adUnitDef]);
       window.pbjs.requestBids({
-        adUnits: [adUnit],
+        adUnits: [adUnitDef],
         bidsBackHandler: renderSlot
       });
     });
   }
 
-  /* ─── Step 4: load prebid.js then run auction ───────────────────── */
+  // ── Step 4: load Prebid.js then run auction ──────────────────────
   window.pbjs = window.pbjs || {};
   window.pbjs.que = window.pbjs.que || [];
   window.pbjs.distUrlBase = SERVER + '/';
@@ -127,7 +232,7 @@ export async function GET(
   if (!window._ypLoaded) {
     window._ypLoaded = true;
     var s = document.createElement('script');
-    s.src = SERVER + '/api/pbjs';
+    s.src   = SERVER + '/api/pbjs';
     s.async = true;
     s.onload = runAuction;
     document.head.appendChild(s);
