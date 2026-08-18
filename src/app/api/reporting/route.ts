@@ -44,16 +44,14 @@ export async function POST(req: NextRequest) {
     // Normalize nested OmniDex row structure to flat format
     // OmniDex returns: { dimensions: { Date: "..." }, metrics: { Impressions: 0 } }
     // Dashboard expects: { Date: "...", Impressions: 0, Revenue: 0 }
-    const rawRows = result?.data?.rows || [];
-    const flatRows = rawRows.map((row: {
-      dimensions?: Record<string, string>;
-      metrics?: Record<string, number>;
-      [key: string]: unknown;
-    }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawRows: any[] = result?.data?.rows || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const flatRows = rawRows.map((row: any) => {
       if (row.dimensions || row.metrics) {
         return { ...row.dimensions, ...row.metrics };
       }
-      return row; // already flat
+      return row;
     });
 
     return NextResponse.json({
