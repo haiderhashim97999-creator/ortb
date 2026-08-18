@@ -47,159 +47,92 @@ export async function GET(
   const tag = `(function () {
   'use strict';
 
-  var PID       = '${OMNIDEX_PID}';
-  var CID       = '${cid}';
-  var AD_ID     = '${adUnit.id}';
-  var AD_W      = ${adW};
-  var AD_H      = ${adH};
-  var IS_VIDEO  = ${isVideo};
-  var SIZES     = ${JSON.stringify(sizes)};
-  var TIMEOUT   = 5000;
-  var SERVER    = '${SERVER_BASE}';
-  var PBJS_WAIT_MAX      = 10000;
-  var PBJS_WAIT_INTERVAL = 100;
+  var PID    = '${OMNIDEX_PID}';
+  var CID    = '${cid}';
+  var AD_ID  = '${adUnit.id}';
+  var AD_W   = ${adW};
+  var AD_H   = ${adH};
+  var SIZES  = ${JSON.stringify(sizes)};
+  var SERVER = '${SERVER_BASE}';
+  var TIMEOUT = 5000;
 
-  /* ── 1. Stable slot ID (no random — must match Prebid code) ── */
-  var slotId = 'yp-' + AD_ID.slice(-8);
-  // If same ad unit appears twice on page, make unique
-  if (document.getElementById(slotId)) {
-    slotId = slotId + '-' + (document.querySelectorAll('[id^="yp-' + AD_ID.slice(-8) + '"]').length);
-  }
-
-  /* ── 2. Create ad container ───────────────────────────────── */
-  var container = document.createElement('div');
-  container.id = slotId;
-  container.style.cssText = 'display:block;width:' + AD_W + 'px;max-width:100%;overflow:hidden;margin:4px auto;min-height:' + AD_H + 'px;';
-
-  var me = document.currentScript || (function () {
+  /* ─── Step 1: inject container div right after this script tag ─── */
+  var _me = document.currentScript || (function(){
     var s = document.getElementsByTagName('script');
     return s[s.length - 1];
   })();
-  if (me && me.parentNode) {
-    me.parentNode.insertBefore(container, me.nextSibling);
-  } else {
-    document.body.appendChild(container);
+
+  var slotId = 'yp-' + AD_ID.slice(-8);
+  while (document.getElementById(slotId)) { slotId += '0'; }
+
+  var _div = document.createElement('div');
+  _div.id = slotId;
+  _div.style.cssText = 'width:' + AD_W + 'px;max-width:100%;overflow:hidden;';
+  _me.parentNode.insertBefore(_div, _me.nextSibling);
+
+  /* ─── Step 2: render function (same logic as pub-vibe) ─────────── */
+  function renderSlot() {
+    var el = document.getElementById(slotId);
+    if (!el) return;
+
+    var bid = window.pbjs.getHighestCpmBids(slotId)[0];
+    if (!bid) { el.style.display = 'none'; return; }
+
+    el.innerHTML = '';
+    el.style.display = 'block';
+
+    var iframe = document.createElement('iframe');
+    iframe.frameBorder = '0';
+    iframe.scrolling = 'no';
+    iframe.width  = bid.width  || AD_W;
+    iframe.height = bid.height || AD_H;
+    iframe.style.cssText = 'border:none;display:block;';
+    el.appendChild(iframe);
+
+    var doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(bid.ad);
+    doc.close();
   }
 
-  /* ── 3. Prebid ad unit definition ────────────────────────── */
-  var adUnitDef = IS_VIDEO
-    ? {
-        code: slotId,
-        mediaTypes: { video: { context: 'outstream', playerSize: [[AD_W, AD_H]] } },
-        bids: [{ bidder: 'omnidex', params: { pid: PID, cid: CID } }]
-      }
-    : {
+  /* ─── Step 3: wait for pbjs then request bids ───────────────────── */
+  function runAuction() {
+    window.pbjs.que.push(function () {
+      window.pbjs.setConfig({
+        bidderTimeout: TIMEOUT,
+        enableTIDs: true,
+        deviceAccess: true
+      });
+      window.pbjs.bidderSettings = { '*': { storageAllowed: true } };
+
+      var adUnit = {
         code: slotId,
         mediaTypes: { banner: { sizes: SIZES } },
         bids: [{ bidder: 'omnidex', params: { pid: PID, cid: CID } }]
       };
 
-  /* ── 4. Render winning bid ───────────────────────────────── */
-  function renderSlot() {
-    var el = document.getElementById(slotId);
-    if (!el) return;
-
-    var bids = window.pbjs.getHighestCpmBids(slotId);
-    var best = bids && bids[0];
-
-    if (!best || !best.adId) {
-      el.style.minHeight = '0';
-      el.style.display = 'none';
-      return;
-    }
-
-    // Banner slot: reject video bids (no vastUrl/renderer = crash)
-    if (!IS_VIDEO && best.mediaType === 'video') {
-      el.style.minHeight = '0';
-      el.style.display = 'none';
-      return;
-    }
-
-    el.style.display = 'block';
-    el.innerHTML = '';
-
-    if (best.mediaType === 'video' && best.renderer) {
-      try {
-        best.renderer.render(best);
-        return;
-      } catch(e) {}
-    }
-
-    // Banner: write ad into iframe
-    var iframe = document.createElement('iframe');
-    iframe.frameBorder = '0';
-    iframe.scrolling   = 'no';
-    iframe.width  = String(best.width  || AD_W);
-    iframe.height = String(best.height || AD_H);
-    iframe.style.cssText = 'border:none;display:block;';
-    el.appendChild(iframe);
-
-    try {
-      var doc = iframe.contentWindow.document;
-      doc.open('text/html', 'replace');
-      doc.write(best.ad);
-      doc.close();
-    } catch(e) {
-      try { window.pbjs.renderAd(iframe.contentWindow.document, best.adId); } catch(e2) {}
-    }
-  }
-
-  /* ── 5. Wait for Prebid.js to fully load ─────────────────── */
-  function waitForPrebid(cb) {
-    if (window.pbjs && typeof window.pbjs.addAdUnits === 'function' && typeof window.pbjs.requestBids === 'function') {
-      cb(); return;
-    }
-    var elapsed = 0;
-    var iv = setInterval(function () {
-      elapsed += PBJS_WAIT_INTERVAL;
-      if (window.pbjs && typeof window.pbjs.addAdUnits === 'function' && typeof window.pbjs.requestBids === 'function') {
-        clearInterval(iv); cb();
-      } else if (elapsed >= PBJS_WAIT_MAX) {
-        clearInterval(iv);
-      }
-    }, PBJS_WAIT_INTERVAL);
-  }
-
-  /* ── 6. Request bids ─────────────────────────────────────── */
-  function requestAd() {
-    waitForPrebid(function () {
-      window.pbjs.que.push(function () {
-        window.pbjs.setConfig({
-          bidderTimeout: TIMEOUT,
-          enableTIDs: true,
-          deviceAccess: true
-        });
-        window.pbjs.bidderSettings = { '*': { storageAllowed: true } };
-
-        // Remove stale unit if already registered (page refresh case)
-        try { if (typeof window.pbjs.removeAdUnit === 'function') window.pbjs.removeAdUnit(slotId); } catch(e) {}
-
-        window.pbjs.addAdUnits([adUnitDef]);
-        window.pbjs.requestBids({
-          adUnits: [adUnitDef],
-          bidsBackHandler: function () {
-            renderSlot();
-          }
-        });
+      window.pbjs.addAdUnits([adUnit]);
+      window.pbjs.requestBids({
+        adUnits: [adUnit],
+        bidsBackHandler: renderSlot
       });
     });
   }
 
-  /* ── 7. Load Prebid.js ───────────────────────────────────── */
+  /* ─── Step 4: load prebid.js then run auction ───────────────────── */
   window.pbjs = window.pbjs || {};
   window.pbjs.que = window.pbjs.que || [];
   window.pbjs.distUrlBase = SERVER + '/';
 
-  if (!window._ypPbjsLoaded) {
-    window._ypPbjsLoaded = true;
+  if (!window._ypLoaded) {
+    window._ypLoaded = true;
     var s = document.createElement('script');
-    s.src   = SERVER + '/api/pbjs';
+    s.src = SERVER + '/api/pbjs';
     s.async = true;
-    s.onload  = function () { requestAd(); };
-    s.onerror = function () { /* silent no-fill */ };
+    s.onload = runAuction;
     document.head.appendChild(s);
   } else {
-    requestAd();
+    runAuction();
   }
 
 })();`;
