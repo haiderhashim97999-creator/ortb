@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard, Globe, Code2, BarChart3, Users,
   Settings, LogOut, Zap, Shield, TrendingUp, ChevronRight,
+  DollarSign, Wallet,
 } from "lucide-react";
 
 interface NavItem { label: string; href: string; icon: React.ElementType }
@@ -16,12 +17,14 @@ const publisherNav: NavItem[] = [
   { label: "Sites",      href: "/dashboard/sites",     icon: Globe },
   { label: "Ad Units",   href: "/dashboard/adunits",   icon: Code2 },
   { label: "Reports",    href: "/dashboard/reports",   icon: BarChart3 },
+  { label: "Revenue",    href: "/dashboard/revenue",   icon: DollarSign },
   { label: "Settings",   href: "/dashboard/settings",  icon: Settings },
 ];
 
 const adminNav: NavItem[] = [
   { label: "Overview",    href: "/admin",              icon: LayoutDashboard },
   { label: "Publishers",  href: "/admin/publishers",   icon: Users },
+  { label: "Payments",    href: "/admin/payments",     icon: Wallet },
   { label: "Reports",     href: "/admin/reports",      icon: TrendingUp },
   { label: "oRTB Demand", href: "/admin/ortb",         icon: Zap },
   { label: "Settings",    href: "/admin/settings",     icon: Shield },

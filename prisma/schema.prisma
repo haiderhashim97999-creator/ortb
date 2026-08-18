@@ -95,3 +95,22 @@ model ReportCache {
   @@unique([publisherId, siteId, date])
   @@index([publisherId])
 }
+
+// Monthly publisher payment records
+model PaymentRecord {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  publisherId     String   @db.ObjectId
+  monthKey        String   // e.g. "2026-08"
+  grossRevenue    Float    @default(0.0)
+  revenueShare    Float    @default(70.0)
+  publisherAmount Float    @default(0.0)
+  impressions     Int      @default(0)
+  status          String   @default("pending")  // pending | paid
+  paidAt          DateTime?
+  paidNote        String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([publisherId, monthKey])
+  @@index([publisherId])
+}
