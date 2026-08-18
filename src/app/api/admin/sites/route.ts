@@ -27,10 +27,23 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { siteId, action } = await req.json();
+  const { siteId, action, adagioSite } = await req.json();
 
-  if (!siteId || !action) {
-    return NextResponse.json({ error: "siteId and action required" }, { status: 400 });
+  if (!siteId) {
+    return NextResponse.json({ error: "siteId required" }, { status: 400 });
+  }
+
+  // Update adagioSite slug only
+  if (adagioSite !== undefined) {
+    const site = await prisma.site.update({
+      where: { id: siteId },
+      data: { adagioSite },
+    });
+    return NextResponse.json({ success: true, site });
+  }
+
+  if (!action) {
+    return NextResponse.json({ error: "action required" }, { status: 400 });
   }
 
   if (!["approve", "reject", "suspend"].includes(action)) {

@@ -13,6 +13,7 @@ interface Site {
   name: string;
   domain: string;
   status: string;
+  adagioSite: string;
   createdAt: string;
   publisher: {
     companyName: string;
@@ -220,6 +221,7 @@ export default function PublishersPage() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Site</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Domain</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Publisher</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Adagio Site</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Ad Units</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Submitted</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
@@ -247,6 +249,9 @@ export default function PublishersPage() {
                         <td className="px-4 py-3">
                           <p className="font-medium text-gray-900">{site.publisher?.user?.name}</p>
                           <p className="text-xs text-gray-400">{site.publisher?.user?.email}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <AdagioSiteInput siteId={site.id} current={site.adagioSite} onSave={fetchSites} />
                         </td>
                         <td className="px-4 py-3 text-gray-600">{site.adUnits?.length || 0}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
@@ -602,5 +607,51 @@ function RotateCcwIcon({ size }: { size: number }) {
       <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
       <path d="M3 3v5h5" />
     </svg>
+  );
+}
+
+// Inline editable Adagio site slug field
+function AdagioSiteInput({ siteId, current, onSave }: { siteId: string; current: string; onSave: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(current || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await fetch("/api/admin/sites", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteId, adagioSite: value }),
+    });
+    setSaving(false);
+    setEditing(false);
+    onSave();
+  }
+
+  if (!editing) {
+    return (
+      <button onClick={() => setEditing(true)}
+        className="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded hover:bg-indigo-100 transition-colors">
+        {current || "set slug..."}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="e.g. trendsbuild-xyz"
+        className="border border-gray-300 rounded px-2 py-0.5 text-xs font-mono w-36 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        autoFocus
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <button onClick={save} disabled={saving}
+        className="text-green-600 hover:text-green-700 text-xs font-semibold">
+        {saving ? "..." : "Save"}
+      </button>
+      <button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+    </div>
   );
 }

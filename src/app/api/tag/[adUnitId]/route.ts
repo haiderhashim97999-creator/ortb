@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // ─── Adagio Configuration ────────────────────────────────────────────────────
-// organizationId and site are provided by Adagio team (from your Adagio account)
+// organizationId: provided by Adagio (from your Adagio account dashboard)
+// site: per-site slug assigned by Adagio — stored in Publisher notes or Site record
 // API Key: ad77f01cfa3bc06d40ce71feb1e9c439b8baac6d
-const ADAGIO_ORGANIZATION_ID = "ad77f01cfa3bc06d40ce71feb1e9c439b8baac6d";
-const ADAGIO_SITE            = "yieldprosper";   // your site name in Adagio dashboard
+const ADAGIO_ORGANIZATION_ID = "1686";
 const SERVER_BASE            = "https://test.mindwellnetwork.site";
 
 export async function GET(
@@ -53,20 +53,21 @@ export async function GET(
   const adW     = sizes[0]?.[0] || 300;
   const adH     = sizes[0]?.[1] || 250;
 
-  // Determine Adagio placement value per documentation recommendations:
-  // Banner: banner_top, banner_middle, banner_bottom etc.
-  // Video:  video_outstream
-  const adagioPlacement = isVideo ? "video_outstream" : "banner_top";
+  // Adagio site slug — set by admin in site settings
+  // Falls back to domain slug if not set
+  const adagioSite = adUnit.site.adagioSite ||
+    adUnit.site.domain.replace(/^www\./, "").replace(/\./g, "-").replace(/[^a-z0-9-]/gi, "").toLowerCase();
 
-  // pagetype — can be extended per site/page in future
-  const pagetype = "article";
+  // Placement per Adagio recommended values (docs.prebid.org/dev-docs/bidders/adagio)
+  const adagioPlacement = isVideo ? "video_outstream" : "banner_top";
+  const pagetype        = "article";
 
   const tag = `(function () {
   'use strict';
 
   // ── Config ──────────────────────────────────────────────────────
   var ADAGIO_ORG_ID  = '${ADAGIO_ORGANIZATION_ID}';
-  var ADAGIO_SITE    = '${ADAGIO_SITE}';
+  var ADAGIO_SITE    = '${adagioSite}';
   var PLACEMENT      = '${adagioPlacement}';
   var PAGETYPE       = '${pagetype}';
   var AD_ID          = '${adUnit.id}';

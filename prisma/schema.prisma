@@ -46,6 +46,7 @@ model Site {
   domain        String
   status        String   @default("active")
   adsTxtContent String   @default("")
+  adagioSite    String   @default("")  // Adagio site slug — assigned by Adagio dashboard
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
