@@ -19,26 +19,51 @@ async function getStats(publisherId: string) {
     where: { publisherId, status: "active" },
     select: { domain: true },
   });
-  const domains = sites.map((s) => s.domain);
-  const domainFilter = domains.length > 0 ? { Site: domains } : undefined;
+  const domains = sites.map((s) => s.domain.toLowerCase().replace(/^www\./, ""));
 
   try {
     const [r30, rY] = await Promise.all([
-      getReport({ from: range30.from,   to: range30.to,   dimensions: ["Date"], metrics: ["Impressions","Revenue"], filters: domainFilter }),
-      getReport({ from: yesterday.from, to: yesterday.to, dimensions: [],       metrics: ["Impressions","Revenue"], filters: domainFilter }),
+      getReport({ from: range30.from,   to: range30.to,   dimensions: ["Date", "Domain"], metrics: ["Impressions","Revenue"] }),
+      getReport({ from: yesterday.from, to: yesterday.to, dimensions: ["Domain"],          metrics: ["Impressions","Revenue"] }),
     ]);
+
     if (r30.success) {
       const rows = flattenRows(r30.data.rows);
-      rows.forEach((r) => {
-        totalRevenue     += r.Revenue     || 0;
-        totalImpressions += r.Impressions || 0;
-        chartData.push({ date: r.Date || "", revenue: r.Revenue || 0, impressions: r.Impressions || 0 });
+      // Filter by publisher domains
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filtered = rows.filter((r: any) => {
+        const d = (r.Domain || "").toLowerCase().replace(/^www\./, "");
+        return domains.some((pub) => d === pub || d.endsWith("." + pub));
+      });
+      // Aggregate by Date
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byDate: Record<string, any> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      filtered.forEach((r: any) => {
+        const date = r.Date || "";
+        if (!byDate[date]) byDate[date] = { Date: date, Revenue: 0, Impressions: 0 };
+        byDate[date].Revenue     += Number(r.Revenue)     || 0;
+        byDate[date].Impressions += Number(r.Impressions) || 0;
+      });
+      Object.values(byDate).forEach((r) => {
+        totalRevenue     += r.Revenue;
+        totalImpressions += r.Impressions;
+        chartData.push({ date: r.Date, revenue: r.Revenue, impressions: r.Impressions });
       });
     }
-    if (rY.success && rY.data.rows.length > 0) {
+
+    if (rY.success) {
       const yRows = flattenRows(rY.data.rows);
-      yesterdayRevenue     = yRows[0].Revenue     || 0;
-      yesterdayImpressions = yRows[0].Impressions || 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const yFiltered = yRows.filter((r: any) => {
+        const d = (r.Domain || "").toLowerCase().replace(/^www\./, "");
+        return domains.some((pub) => d === pub || d.endsWith("." + pub));
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      yFiltered.forEach((r: any) => {
+        yesterdayRevenue     += Number(r.Revenue)     || 0;
+        yesterdayImpressions += Number(r.Impressions) || 0;
+      });
     }
   } catch { /* API unavailable */ }
 
