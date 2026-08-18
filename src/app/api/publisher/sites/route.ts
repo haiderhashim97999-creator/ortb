@@ -35,10 +35,10 @@ export async function POST(req: NextRequest) {
         publisherId: session.publisherId,
         name,
         domain: cleanDomain,
-        status: "active",
+        status: "pending",  // Admin approval required
       },
     });
-    return NextResponse.json(site);
+    return NextResponse.json({ ...site, message: "Site submitted for approval" });
   } catch {
     return NextResponse.json({ error: "Domain already registered for this account" }, { status: 409 });
   }

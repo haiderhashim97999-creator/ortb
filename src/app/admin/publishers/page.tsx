@@ -6,7 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { statusBadge } from "@/components/ui/badge";
-import { CheckCircle, Ban, Eye, CreditCard, DollarSign, TrendingUp, RefreshCw } from "lucide-react";
+import { CheckCircle, Ban, Eye, CreditCard, DollarSign, TrendingUp, RefreshCw, Globe, XCircle } from "lucide-react";
+
+interface Site {
+  id: string;
+  name: string;
+  domain: string;
+  status: string;
+  createdAt: string;
+  publisher: {
+    companyName: string;
+    user: { name: string; email: string };
+  };
+  adUnits: { id: string }[];
+}
 
 interface Publisher {
   id: string;
@@ -52,9 +65,13 @@ function fmtN(n: number) {
 }
 
 export default function PublishersPage() {
+  const [tab, setTab] = useState<"publishers" | "sites">("publishers");
   const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
+  const [siteLoading, setSiteLoading] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [siteFilter, setSiteFilter] = useState("pending");
 
   // Modal state
   const [selected, setSelected] = useState<Publisher | null>(null);
@@ -76,6 +93,14 @@ export default function PublishersPage() {
     setLoading(false);
   }, []);
 
+  const fetchSites = useCallback(async () => {
+    setSiteLoading(true);
+    const res = await fetch("/api/admin/sites");
+    const data = await res.json();
+    setSites(data.success ? data.sites : []);
+    setSiteLoading(false);
+  }, []);
+
   const fetchRevenue = useCallback(async () => {
     setRevLoading(true);
     try {
@@ -89,7 +114,17 @@ export default function PublishersPage() {
   useEffect(() => {
     fetchPublishers();
     fetchRevenue();
-  }, [fetchPublishers, fetchRevenue]);
+    fetchSites();
+  }, [fetchPublishers, fetchRevenue, fetchSites]);
+
+  async function siteAction(siteId: string, action: "approve" | "reject" | "suspend") {
+    await fetch("/api/admin/sites", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteId, action }),
+    });
+    await fetchSites();
+  }
 
   function calcPublisherRevenue(revShare: number, totalRevenue: number) {
     return (totalRevenue * revShare) / 100;
@@ -136,24 +171,141 @@ export default function PublishersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Publishers</h1>
           <p className="text-gray-500 text-sm mt-1">Manage accounts, revenue & payouts</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {["all", "pending", "active", "banned"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                filter === f ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== "all" && (
-                <span className="ml-1.5 text-xs opacity-70">
-                  ({publishers.filter((p) => p.status === f).length})
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab("publishers")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "publishers" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
+            Publishers
+          </button>
+          <button
+            onClick={() => setTab("sites")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors relative ${tab === "sites" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
+            Sites
+            {sites.filter((s) => s.status === "pending").length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                {sites.filter((s) => s.status === "pending").length}
+              </span>
+            )}
+          </button>
         </div>
+      </div>
+
+      {/* ── SITES TAB ────────────────────────────── */}
+      {tab === "sites" && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            {["pending", "active", "rejected", "all"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setSiteFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${siteFilter === f ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+                <span className="ml-1.5 text-xs opacity-70">
+                  ({f === "all" ? sites.length : sites.filter((s) => s.status === f).length})
+                </span>
+              </button>
+            ))}
+            <button onClick={fetchSites} className="ml-auto text-gray-400 hover:text-indigo-600 p-1.5">
+              <RefreshCw size={14} className={siteLoading ? "animate-spin" : ""} />
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Site</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Domain</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Publisher</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Ad Units</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Submitted</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {siteLoading ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                ) : sites.filter((s) => siteFilter === "all" || s.status === siteFilter).length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No sites found</td></tr>
+                ) : (
+                  sites
+                    .filter((s) => siteFilter === "all" || s.status === siteFilter)
+                    .map((site) => (
+                      <tr key={site.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{site.name}</td>
+                        <td className="px-4 py-3">
+                          <a href={`https://${site.domain}`} target="_blank" rel="noopener noreferrer"
+                            className="text-indigo-600 hover:underline flex items-center gap-1">
+                            <Globe size={12} />
+                            {site.domain}
+                          </a>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{site.publisher?.user?.name}</p>
+                          <p className="text-xs text-gray-400">{site.publisher?.user?.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{site.adUnits?.length || 0}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">
+                          {new Date(site.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                        <td className="px-4 py-3 text-center">{statusBadge(site.status)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {site.status === "pending" && (
+                              <>
+                                <Button size="sm" onClick={() => siteAction(site.id, "approve")}>
+                                  <CheckCircle size={13} /> Approve
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => siteAction(site.id, "reject")}>
+                                  <XCircle size={13} /> Reject
+                                </Button>
+                              </>
+                            )}
+                            {site.status === "active" && (
+                              <Button size="sm" variant="outline" onClick={() => siteAction(site.id, "suspend")}>
+                                Suspend
+                              </Button>
+                            )}
+                            {(site.status === "rejected" || site.status === "suspended") && (
+                              <Button size="sm" variant="outline" onClick={() => siteAction(site.id, "approve")}>
+                                Re-approve
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── PUBLISHERS TAB ───────────────────────── */}
+      {tab === "publishers" && (<>
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {["all", "pending", "active", "banned"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              filter === f ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+            {f !== "all" && (
+              <span className="ml-1.5 text-xs opacity-70">
+                ({publishers.filter((p) => p.status === f).length})
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Network Revenue Summary (last 30 days) */}
@@ -278,6 +430,8 @@ export default function PublishersPage() {
           </table>
         </div>
       )}
+
+      </>)}
 
       {/* Detail / Edit Modal */}
       <Modal

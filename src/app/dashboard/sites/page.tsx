@@ -112,6 +112,16 @@ export default function SitesPage() {
                         {statusBadge(site.status)}
                       </div>
                       <p className="text-sm text-gray-500 mt-0.5">{site.domain}</p>
+                      {site.status === "pending" && (
+                        <p className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 px-2 py-1 rounded-lg mt-2">
+                          ⏳ Awaiting admin approval — ad units cannot be created until approved
+                        </p>
+                      )}
+                      {site.status === "rejected" && (
+                        <p className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded-lg mt-2">
+                          ❌ Site rejected by admin — contact support
+                        </p>
+                      )}
                       <div className="flex items-center gap-3 mt-2">
                         <Badge variant="info">{site.adUnits.length} ad units</Badge>
                         <Badge variant="gray">
