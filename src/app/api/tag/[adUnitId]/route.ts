@@ -193,7 +193,7 @@ export async function GET(
         '*': { storageAllowed: true }
       };
 
-      // Ad unit — both Adagio + OmniDex as fallback bidder
+      // Ad unit — Adagio only
       var adUnitDef = IS_VIDEO
         ? {
             code: slotId,
@@ -215,19 +215,13 @@ export async function GET(
                 api: [1, 2]
               }
             },
-            bids: [
-              {
-                bidder: 'adagio',
-                params: {
-                  organizationId: ADAGIO_ORG_ID,
-                  site: ADAGIO_SITE
-                }
-              },
-              {
-                bidder: 'omnidex',
-                params: { pid: OMNIDEX_PID, cid: OMNIDEX_CID_VIDEO }
+            bids: [{
+              bidder: 'adagio',
+              params: {
+                organizationId: ADAGIO_ORG_ID,
+                site: ADAGIO_SITE
               }
-            ]
+            }]
           }
         : {
             code: slotId,
@@ -241,19 +235,13 @@ export async function GET(
             mediaTypes: {
               banner: { sizes: SIZES }
             },
-            bids: [
-              {
-                bidder: 'adagio',
-                params: {
-                  organizationId: ADAGIO_ORG_ID,
-                  site: ADAGIO_SITE
-                }
-              },
-              {
-                bidder: 'omnidex',
-                params: { pid: OMNIDEX_PID, cid: OMNIDEX_CID_BANNER }
+            bids: [{
+              bidder: 'adagio',
+              params: {
+                organizationId: ADAGIO_ORG_ID,
+                site: ADAGIO_SITE
               }
-            ]
+            }]
           };
 
       window.pbjs.addAdUnits([adUnitDef]);
