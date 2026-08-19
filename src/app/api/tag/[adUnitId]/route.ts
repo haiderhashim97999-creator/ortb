@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // ─── Adagio Configuration ────────────────────────────────────────────────────
-// organizationId: provided by Adagio (from your Adagio account dashboard)
-// site: per-site slug assigned by Adagio — stored in Publisher notes or Site record
-// API Key: ad77f01cfa3bc06d40ce71feb1e9c439b8baac6d
 const ADAGIO_ORGANIZATION_ID = "1686";
 const SERVER_BASE            = "https://test.mindwellnetwork.site";
+
+// ─── OmniDex Fallback ────────────────────────────────────────────────────────
+const OMNIDEX_PID        = "25cv68n329154k1909176mw4";
+const OMNIDEX_CID_BANNER = "6a0f24939f9529b6eec283e7";
+const OMNIDEX_CID_VIDEO  = "6a0f249b01f8a0cb9562731";
 
 export async function GET(
   _req: NextRequest,
@@ -70,6 +72,9 @@ export async function GET(
   // ── Config ──────────────────────────────────────────────────────
   var ADAGIO_ORG_ID  = '${ADAGIO_ORGANIZATION_ID}';
   var ADAGIO_SITE    = '${adagioSite}';
+  var OMNIDEX_PID    = '${OMNIDEX_PID}';
+  var OMNIDEX_CID_BANNER = '${OMNIDEX_CID_BANNER}';
+  var OMNIDEX_CID_VIDEO  = '${OMNIDEX_CID_VIDEO}';
   var PLACEMENT      = '${adagioPlacement}';
   var PAGETYPE       = '${pagetype}';
   var AD_ID          = '${adUnit.id}';
@@ -188,14 +193,14 @@ export async function GET(
         '*': { storageAllowed: true }
       };
 
-      // Ad unit — placement set via ortb2Imp.ext.data (not deprecated params)
+      // Ad unit — both Adagio + OmniDex as fallback bidder
       var adUnitDef = IS_VIDEO
         ? {
             code: slotId,
             ortb2Imp: {
               ext: {
                 data: {
-                  placement: PLACEMENT   // e.g. 'video_outstream'
+                  placement: PLACEMENT
                 }
               }
             },
@@ -210,33 +215,45 @@ export async function GET(
                 api: [1, 2]
               }
             },
-            bids: [{
-              bidder: 'adagio',
-              params: {
-                organizationId: ADAGIO_ORG_ID,
-                site: ADAGIO_SITE
+            bids: [
+              {
+                bidder: 'adagio',
+                params: {
+                  organizationId: ADAGIO_ORG_ID,
+                  site: ADAGIO_SITE
+                }
+              },
+              {
+                bidder: 'omnidex',
+                params: { pid: OMNIDEX_PID, cid: OMNIDEX_CID_VIDEO }
               }
-            }]
+            ]
           }
         : {
             code: slotId,
             ortb2Imp: {
               ext: {
                 data: {
-                  placement: PLACEMENT   // e.g. 'banner_top'
+                  placement: PLACEMENT
                 }
               }
             },
             mediaTypes: {
               banner: { sizes: SIZES }
             },
-            bids: [{
-              bidder: 'adagio',
-              params: {
-                organizationId: ADAGIO_ORG_ID,
-                site: ADAGIO_SITE
+            bids: [
+              {
+                bidder: 'adagio',
+                params: {
+                  organizationId: ADAGIO_ORG_ID,
+                  site: ADAGIO_SITE
+                }
+              },
+              {
+                bidder: 'omnidex',
+                params: { pid: OMNIDEX_PID, cid: OMNIDEX_CID_BANNER }
               }
-            }]
+            ]
           };
 
       window.pbjs.addAdUnits([adUnitDef]);
