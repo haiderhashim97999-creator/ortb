@@ -36,8 +36,8 @@ export async function GET() {
         "User-Agent": "Mozilla/5.0 (compatible; YieldProsper/1.0)",
         Accept: "application/javascript, text/javascript, */*",
       },
-      // Next.js fetch cache — revalidate every 6 hours on the server side too
-      next: { revalidate: 21600 },
+      // Skip Next.js cache — file is too large (3.6MB)
+      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -51,9 +51,8 @@ export async function GET() {
     return buildResponse(text);
   } catch (err) {
     console.error("[pbjs proxy] fetch failed:", err);
-    // Return a no-op stub so the page doesn't break
     return new NextResponse(
-      `/* prebid.js loader error — retrying next request */\nwindow.pbjs=window.pbjs||{que:[]};`,
+      `window.pbjs=window.pbjs||{que:[]};`,
       {
         status: 200,
         headers: {
