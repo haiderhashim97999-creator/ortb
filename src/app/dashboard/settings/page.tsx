@@ -121,7 +121,7 @@ export default function SettingsPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-blue-700 text-xs">
             Revenue is calculated and paid out by YieldProsper admin based on your ad performance.
             Payment is processed once your balance reaches the minimum threshold.
-            Contact <strong>payments@yieldprosper.com</strong> for balance inquiries.
+            Contact <strong>payments@yieldpros.website</strong> for balance inquiries.
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Minimum payout</span>
@@ -133,7 +133,7 @@ export default function SettingsPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Contact for payment</span>
-            <span className="font-medium text-indigo-600">payments@yieldprosper.com</span>
+            <span className="font-medium text-indigo-600">payments@yieldpros.website</span>
           </div>
         </CardContent>
       </Card>
